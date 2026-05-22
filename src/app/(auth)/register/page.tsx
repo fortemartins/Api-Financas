@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Loader2, Mail } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -47,7 +47,7 @@ export default function RegisterPage() {
 
     setSuccess(true);
     setLoading(false);
-    setTimeout(() => router.push("/login"), 3000);
+    setTimeout(() => router.push("/login"), 5000);
   }
 
   if (success) {
@@ -59,9 +59,15 @@ export default function RegisterPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h3 className="font-semibold text-lg">Cadastro realizado!</h3>
+          <h3 className="font-semibold text-lg">Cadastro realizado! 🎉</h3>
           <p className="text-sm text-muted-foreground">
-            Verifique seu e-mail para confirmar a conta. Redirecionando para o login...
+            Enviamos um <strong>e-mail de confirmação</strong> para <strong>{email}</strong>.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Acesse sua caixa de entrada, clique no link de confirmação e depois faça login.
+          </p>
+          <p className="text-xs text-muted-foreground/70 pt-1">
+            Redirecionando para o login em instantes...
           </p>
         </CardContent>
       </Card>
@@ -118,6 +124,12 @@ export default function RegisterPage() {
           </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-3">
+          <div className="w-full flex items-start gap-2 rounded-md bg-blue-50 border border-blue-200 p-3 text-sm text-blue-700">
+            <Mail className="h-4 w-4 mt-0.5 flex-shrink-0" />
+            <span>
+              Após criar a conta, você receberá um <strong>e-mail de confirmação</strong>. Confirme antes de fazer login.
+            </span>
+          </div>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Criando conta...</> : "Criar conta"}
           </Button>
