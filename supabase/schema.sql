@@ -1,99 +1,94 @@
--- =====================================================
--- FinançasPessoais — Schema SQL para Supabase
--- Execute no SQL Editor do seu projeto Supabase
--- =====================================================
+﻿-- ============================================================
+-- FinançasPessoais — Schema Supabase
+-- Execute este arquivo no SQL Editor do seu projeto Supabase
+-- ============================================================
 
--- 1. Tabela de categorias
-CREATE TABLE IF NOT EXISTS categories (
-  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  name        TEXT NOT NULL,
-  color       TEXT NOT NULL DEFAULT '#94a3b8',
-  icon        TEXT,
-  user_id     UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  is_default  BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+-- Habilitar UUID
+create extension if not exists "pgcrypto";
+
+-- ============================================================
+-- TABELA: categories
+-- ============================================================
+create table if not exists public.categories (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid references auth.users(id) on delete cascade,
+  name        text not null,
+  color       text not null default '#94a3b8',
+  icon        text,
+  is_default  boolean not null default false,
+  created_at  timestamptz not null default now()
 );
 
--- 2. Tabela de transações
-CREATE TABLE IF NOT EXISTS transactions (
-  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id     UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  type        TEXT NOT NULL CHECK (type IN ('income', 'expense')),
-  amount      NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
-  description TEXT NOT NULL,
-  category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
-  date        DATE NOT NULL,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+-- Categorias padrão (compartilhadas, user_id = null)
+insert into public.categories (name, color, is_default) values
+  ('Alimentação',   '#f59e0b', true),
+  ('Transporte',    '#3b82f6', true),
+  ('Moradia',       '#8b5cf6', true),
+  ('Saúde',         '#22c55e', true),
+  ('Educação',      '#06b6d4', true),
+  ('Lazer',         '#ec4899', true),
+  ('Vestuário',     '#f97316', true),
+  ('Salário',       '#22c55e', true),
+  ('Investimentos', '#14b8a6', true),
+  ('Outros',        '#94a3b8', true)
+on conflict do nothing;
+
+-- ============================================================
+-- TABELA: transactions
+-- ============================================================
+create table if not exists public.transactions (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  type        text not null check (type in ('income', 'expense')),
+  amount      numeric(12, 2) not null check (amount > 0),
+  description text not null,
+  category_id uuid references public.categories(id) on delete set null,
+  date        date not null default current_date,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
 );
 
--- 3. Índices para performance
-CREATE INDEX IF NOT EXISTS idx_transactions_user_id  ON transactions(user_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_date      ON transactions(date DESC);
-CREATE INDEX IF NOT EXISTS idx_transactions_type      ON transactions(type);
-CREATE INDEX IF NOT EXISTS idx_transactions_category  ON transactions(category_id);
-CREATE INDEX IF NOT EXISTS idx_categories_user_id     ON categories(user_id);
+-- ============================================================
+-- ROW LEVEL SECURITY (RLS)
+-- ============================================================
 
--- 4. Row Level Security
-ALTER TABLE categories   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+-- categories
+alter table public.categories enable row level security;
 
--- Policies: categories
-CREATE POLICY "Usuários veem próprias categorias e as padrão"
-  ON categories FOR SELECT
-  USING (auth.uid() = user_id OR is_default = TRUE);
+create policy "Categorias padrão visíveis a todos"
+  on public.categories for select
+  using (is_default = true or auth.uid() = user_id);
 
-CREATE POLICY "Usuários criam próprias categorias"
-  ON categories FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+create policy "Usuário gerencia suas categorias"
+  on public.categories for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
-CREATE POLICY "Usuários atualizam próprias categorias"
-  ON categories FOR UPDATE
-  USING (auth.uid() = user_id);
+-- transactions
+alter table public.transactions enable row level security;
 
-CREATE POLICY "Usuários excluem próprias categorias"
-  ON categories FOR DELETE
-  USING (auth.uid() = user_id);
+create policy "Usuário vê suas transações"
+  on public.transactions for select
+  using (auth.uid() = user_id);
 
--- Policies: transactions
-CREATE POLICY "Usuários veem próprias transações"
-  ON transactions FOR SELECT
-  USING (auth.uid() = user_id);
+create policy "Usuário cria suas transações"
+  on public.transactions for insert
+  with check (auth.uid() = user_id);
 
-CREATE POLICY "Usuários criam próprias transações"
-  ON transactions FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+create policy "Usuário atualiza suas transações"
+  on public.transactions for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
-CREATE POLICY "Usuários atualizam próprias transações"
-  ON transactions FOR UPDATE
-  USING (auth.uid() = user_id);
+create policy "Usuário deleta suas transações"
+  on public.transactions for delete
+  using (auth.uid() = user_id);
 
-CREATE POLICY "Usuários excluem próprias transações"
-  ON transactions FOR DELETE
-  USING (auth.uid() = user_id);
-
--- 5. Categorias padrão (inseridas sem user_id)
-INSERT INTO categories (name, color, is_default) VALUES
-  ('Alimentação',    '#f97316', TRUE),
-  ('Transporte',     '#3b82f6', TRUE),
-  ('Moradia',        '#8b5cf6', TRUE),
-  ('Saúde',          '#22c55e', TRUE),
-  ('Educação',       '#06b6d4', TRUE),
-  ('Lazer',          '#ec4899', TRUE),
-  ('Salário',        '#22c55e', TRUE),
-  ('Investimentos',  '#f59e0b', TRUE),
-  ('Outros',         '#94a3b8', TRUE)
-ON CONFLICT DO NOTHING;
-
--- 6. Trigger para atualizar updated_at
-CREATE OR REPLACE FUNCTION update_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER transactions_updated_at
-  BEFORE UPDATE ON transactions
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+-- ============================================================
+-- ÍNDICES para performance
+-- ============================================================
+create index if not exists idx_transactions_user_id   on public.transactions(user_id);
+create index if not exists idx_transactions_date       on public.transactions(date desc);
+create index if not exists idx_transactions_type       on public.transactions(type);
+create index if not exists idx_transactions_category   on public.transactions(category_id);
+create index if not exists idx_categories_user_id      on public.categories(user_id);
