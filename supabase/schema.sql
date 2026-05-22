@@ -55,10 +55,12 @@ create table if not exists public.transactions (
 -- categories
 alter table public.categories enable row level security;
 
+drop policy if exists "Categorias padrão visíveis a todos" on public.categories;
 create policy "Categorias padrão visíveis a todos"
   on public.categories for select
   using (is_default = true or auth.uid() = user_id);
 
+drop policy if exists "Usuário gerencia suas categorias" on public.categories;
 create policy "Usuário gerencia suas categorias"
   on public.categories for all
   using (auth.uid() = user_id)
@@ -67,19 +69,23 @@ create policy "Usuário gerencia suas categorias"
 -- transactions
 alter table public.transactions enable row level security;
 
+drop policy if exists "Usuário vê suas transações" on public.transactions;
 create policy "Usuário vê suas transações"
   on public.transactions for select
   using (auth.uid() = user_id);
 
+drop policy if exists "Usuário cria suas transações" on public.transactions;
 create policy "Usuário cria suas transações"
   on public.transactions for insert
   with check (auth.uid() = user_id);
 
+drop policy if exists "Usuário atualiza suas transações" on public.transactions;
 create policy "Usuário atualiza suas transações"
   on public.transactions for update
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+drop policy if exists "Usuário deleta suas transações" on public.transactions;
 create policy "Usuário deleta suas transações"
   on public.transactions for delete
   using (auth.uid() = user_id);
